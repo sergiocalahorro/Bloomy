@@ -13,6 +13,7 @@ public class CharacterMovementComponent : MonoBehaviour
     private float speed;
     [SerializeField, Range(0.01f, 0.2f)]
     private float accelerationTime;
+    private bool isFacingRight;
 
     // Jump
     [Header("Jump | Main")]
@@ -37,6 +38,19 @@ public class CharacterMovementComponent : MonoBehaviour
     private float coyoteTime;
     private float coyoteTimeCounter;
 
+    // Jump
+    [Header("Dash | Main")]
+    [SerializeField, Range(5f, 30f)]
+    private float dashSpeed;
+    [SerializeField, Range(0.1f, 1f)]
+    private float dashDuration;
+    [SerializeField, Range(0.1f, 1f)]
+    private float dashCooldown;
+    private Vector2 dashDirection;
+    private bool isDashing;
+    private bool canDash;
+    private bool startedDashMidAir;
+
     // Components
     private GroundCheckComponent groundCheckComponent;
     private Rigidbody2D rigidbody;
@@ -48,12 +62,20 @@ public class CharacterMovementComponent : MonoBehaviour
         rigidbody = GetComponent<Rigidbody2D>();
         groundCheckComponent = GetComponent<GroundCheckComponent>();
         spriteRenderer = GetComponent<SpriteRenderer>();
+
+        isFacingRight = spriteRenderer.flipX;
     }
 
     // Start is called before the first frame update
     private void Start()
     {
+        canDash = true;
+    }
 
+    // Update is called once per frame
+    private void Update()
+    {
+        
     }
 
     // FixedUpdate is called every fixed framerate frame
@@ -61,6 +83,7 @@ public class CharacterMovementComponent : MonoBehaviour
     {
         CheckGroundedState();
         AdjustGravityInAir();
+        Dash();
     }
 
     /// <summary>
@@ -75,9 +98,10 @@ public class CharacterMovementComponent : MonoBehaviour
         rigidbody.velocity = Vector3.SmoothDamp(rigidbody.velocity, targetVelocity, ref dampVelocity, accelerationTime);
 
         // Flip character's sprite to match horizontal input direction
-        if ((spriteRenderer.flipX && directionValue > 0f) || (!spriteRenderer.flipX && directionValue < 0f))
+        if ((!isFacingRight && directionValue > 0f) || (isFacingRight && directionValue < 0f))
         {
             spriteRenderer.flipX = !spriteRenderer.flipX;
+            isFacingRight = spriteRenderer.flipX;
         }
     }
 
@@ -97,6 +121,8 @@ public class CharacterMovementComponent : MonoBehaviour
                 isJumping = false;
                 currentJumpCount = 0;
                 coyoteTimeCounter = 0f;
+
+                canDash = true;
             }
         }
 
@@ -134,6 +160,15 @@ public class CharacterMovementComponent : MonoBehaviour
             rigidbody.AddForce(Vector2.up * jumpForce, ForceMode2D.Impulse);
             isJumping = true;
             currentJumpCount++;
+
+            // Allow character to perform a dash if didn't previously dash in mid-air
+            if (!startedDashMidAir)
+            {
+                if (!isDashing && !canDash)
+                {
+                    canDash = true;
+                }
+            }
         }
     }
 
@@ -162,6 +197,89 @@ public class CharacterMovementComponent : MonoBehaviour
         else if (rigidbody.velocity.y > 0f)
         {
             rigidbody.velocity += Vector2.up * Physics2D.gravity.y * (jumpUpwardsGravityMultiplier - 1f) * Time.deltaTime;
+        }
+    }
+
+    /// <summary>
+    /// Start character's dash
+    /// </summary>
+    /// <param name="directionX"> Horizontal direction value </param>
+    public void StartDash(float directionX)
+    {
+        if (canDash && !isDashing)
+        {
+            isDashing = true;
+            canDash = false;
+
+            startedDashMidAir = !isGrounded;
+
+            dashDirection = new Vector2(directionX, 0f);
+
+            // Dash in the direction the character is facing if the given direction is zero
+            if (dashDirection == Vector2.zero)
+            {
+                if (isFacingRight)
+                {
+                    dashDirection = new Vector2(1f, 0f);
+                }
+                else
+                {
+                    dashDirection = new Vector2(-1f, 0f);
+                }
+            }
+
+            // Stop dashing after a certain amount of time
+            StartCoroutine(StopDash());
+        }
+    }
+
+    /// <summary>
+    /// Character's dash forward
+    /// </summary>
+    private void Dash()
+    {
+        if (isDashing)
+        {
+            rigidbody.velocity = dashDirection.normalized * dashSpeed;
+        }
+    }
+
+    /// <summary>
+    /// Stop character's dash
+    /// </summary>
+    public void InterruptDash()
+    {
+        if (isDashing)
+        {
+            isDashing = false;
+            StartCoroutine(EnableDash());
+        }
+    }
+
+    /// <summary>
+    /// Stop character's dash after a certain delay
+    /// </summary>
+    /// <returns> Time in seconds to stop dashing </returns>
+    private IEnumerator StopDash()
+    {
+        yield return new WaitForSeconds(dashDuration);
+        InterruptDash();
+    }
+
+    /// <summary>
+    /// Enable character's ability to dash after the cooldown is consumed
+    /// </summary>
+    /// <returns> Time in seconds to enable dash </returns>
+    private IEnumerator EnableDash()
+    {
+        yield return new WaitForSeconds(dashCooldown);
+
+        if (isGrounded)
+        {
+            if (!isDashing && !canDash)
+            {
+                canDash = true;
+            }
         }
     }
 }

@@ -15,12 +15,7 @@ public class Player : BaseCharacter
     protected override void Awake()
     {
         base.Awake();
-
-        // Setup inputs
-        playerInputActions = new PlayerInputActions();
-        playerInputActions.Player.Enable();
-        playerInputActions.Player.Jump.performed += OnJumpButtonPressed;
-        playerInputActions.Player.Jump.canceled += OnJumpButtonReleased;
+        SetupPlayerInputs();
     }
 
     // Start is called before the first frame update
@@ -47,6 +42,18 @@ public class Player : BaseCharacter
     }
 
     /// <summary>
+    /// Setup player's inputs
+    /// </summary>
+    private void SetupPlayerInputs()
+    {
+        playerInputActions = new PlayerInputActions();
+        playerInputActions.Player.Enable();
+        playerInputActions.Player.Jump.performed += OnJumpButtonPressed;
+        playerInputActions.Player.Jump.canceled += OnJumpButtonReleased;
+        playerInputActions.Player.Dash.performed += OnDashButtonPressed;
+    }
+
+    /// <summary>
     /// Player pressed button bound to jump action (jump logic)
     /// </summary>
     /// <param name="context">Input action's context</param>
@@ -55,6 +62,14 @@ public class Player : BaseCharacter
         if (characterMovementComponent != null)
         {
             characterMovementComponent.Jump();
+        }
+    }
+
+    private void OnDashButtonPressed(InputAction.CallbackContext context)
+    {
+        if (characterMovementComponent != null)
+        {
+            characterMovementComponent.StartDash(playerInputActions.Player.Movement.ReadValue<float>());
         }
     }
 
@@ -80,5 +95,18 @@ public class Player : BaseCharacter
         // ...
 
         base.HandleDestruction();
+    }
+
+    /// <summary>
+    /// Handle collision enter
+    /// </summary>
+    /// <param name="collision"> Gameobject's collision that collided with this component's owner </param>
+    private void OnCollisionEnter2D(Collision2D collision)
+    {
+        // Stop dashing on collision
+        if (characterMovementComponent != null)
+        {
+            characterMovementComponent.InterruptDash();
+        }
     }
 }
